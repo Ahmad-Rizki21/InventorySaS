@@ -1,0 +1,78 @@
+Tech Stack & Libraries
+Frontend	React.js (Vite)	Tailwind CSS, Shadcn UI, Lucide React (Icons), TanStack Query (Data Fetching), Zod (Validation).
+Backend	Node.js (Express)	Prisma ORM (Database access), Axios (untuk tembak API Artacom), JWT (Security).
+Scanner	Web Browser	html5-qrcode (untuk scan SN lewat kamera HP teknisi).
+
+Skema Database (Prisma Schema - FTTH Focus)
+// Contoh schema.prisma sederhana
+
+model Product {
+  id          String   @id @default(uuid())
+  sku         String   @unique
+  name        String
+  category    String   // "Active" (ONT/AP), "Passive" (Kabel/Splitter), "Tool" (Splicer/Tangga)
+  unit        String   // "Pcs", "Meter", "Lot"
+  items       ItemDetail[] // Hanya untuk yang punya SN
+  stocks      Stock[]
+}
+
+model ItemDetail {
+  id            String   @id @default(uuid())
+  productId     String
+  serialNumber  String   @unique
+  macAddress    String?  @unique
+  status        Status   @default(GUDANG) // GUDANG, TERPASANG, RUSAK, TEKNISI
+  lastKnownLat  Float?
+  lastKnownLng  Float?
+  product       Product  @relation(fields: [productId], references: [id])
+}
+
+model Stock {
+  id          String   @id @default(uuid())
+  productId   String
+  warehouseId String
+  quantity    Float    // Bisa desimal untuk meter kabel
+  product     Product  @relation(fields: [productId], references: [id])
+}
+
+enum Status {
+  GUDANG
+  TERPASANG
+  RUSAK
+  TEKNISI
+}
+
+
+
+
+Alur Use Case: Instalasi FTTH
+1. Sync Data: Aplikasi Web menarik data pelanggan dari API Artacom Billing (Nama Pelanggan, Alamat, Paket).
+2. Checkout Barang: Petugas Gudang memilih nama teknisi, lalu scan SN ONT dan input jumlah meter kabel yang diambil.
+3. Deployment (Field): Teknisi melakukan instalasi. Setelah selesai, teknisi melakukan konfirmasi melalui aplikasi.
+
+UI Design Plan (Shadcn UI)
+Gunakan komponen Shadcn untuk tampilan profesional:
+	 Dashboard: Pakai Card dan Recharts untuk grafik stok kabel yang menipis.
+	 Inventory Table: Pakai DataTable dengan fitur filter kategori (Active vs Passive).
+	 Audit Page: Pakai Dialog atau Drawer untuk input hasil scan SN secara cepat.
+	 Technician Request: Pakai Form dengan Combobox untuk memilih teknisi dan barang.
+
+
+
+Langkah Implementasi Pertama
+    Setup API Wrapper: Buat fungsi di Node.js untuk melakukan Authentication ke API Artacom Billing.
+    Module Master Barang: Buat halaman untuk menarik (Import) data barang dari Artacom ke database lokal aplikasi gudang.
+    Module Stock In: Fitur untuk menambah stok kabel (berdasarkan meter) dan mendaftarkan SN ONT baru yang datang dari supplier.
+
+
+
+
+Untuk endpoint api inventory Gudang itu di sini
+https://billingftth.my.id/api/inventory
+
+untuk auth nya 
+Email / Username : ahmad@ajnusa.com
+Password : password
+
+kurang lebih data nya itu ada ini
+Serial Number	MAC Address	Tipe	Status	Lokasi	Catatan

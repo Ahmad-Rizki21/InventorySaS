@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model activitylog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String
+  description String
+  metadata    String?  @db.Text
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  entity      String?
+  entityId    String?
+  user        user     @relation(fields: [userId], references: [id], map: "ActivityLog_userId_fkey")
+
+  @@index([action], map: "ActivityLog_action_idx")
+  @@index([createdAt], map: "ActivityLog_createdAt_idx")
+  @@index([userId], map: "ActivityLog_userId_idx")
+  @@index([entity, entityId], map: "ActivityLog_entity_entityId_idx")
+}
+
+model itemdetail {
+  id           String            @id @default(cuid())
+  productId    String
+  serialNumber String            @unique(map: "ItemDetail_serialNumber_key")
+  macAddress   String?           @unique(map: "ItemDetail_macAddress_key")
+  status       itemdetail_status @default(GUDANG)
+  lastKnownLat Float?
+  lastKnownLng Float?
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  purchaseDate DateTime?
+  
+  // SAT specific fields
+  milikPerangkat  String?
+  idToko          String?
+  namaToko        String?
+  dc              String?
+  brandToko       String?
+  tglTerimaGudang DateTime?
+  catatanTerima   String?
+  tglKirimMitra   DateTime?
+  mitra           String?
+  hargaPeplink    String?
+
+  product      product           @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ItemDetail_productId_fkey")
+  histories    itemhistory[]
+
+  @@index([productId], map: "ItemDetail_productId_fkey")
+}
+
+model product {
+  id          String       @id @default(cuid())
+  sku         String       @unique(map: "Product_sku_key")
+  name        String
+  category    String
+  unit        String
+  productType String       @default("FTTH") // FTTH or SAT
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  itemdetail  itemdetail[]
+  stock       stock[]
+}
+
+model refreshtoken {
+  id        String    @id @default(cuid())
+  token     String    @unique(map: "RefreshToken_token_key")
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  ipAddress String?
+  userAgent String?
+  user      user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "RefreshToken_userId_fkey")
+
+  @@index([expiresAt], map: "RefreshToken_expiresAt_idx")
+  @@index([token], map: "RefreshToken_token_idx")
+  @@index([userId], map: "RefreshToken_userId_idx")
+}
+
+model stock {
+  id          String   @id @default(cuid())
+  productId   String
+  warehouseId String   @default("WH-001")
+  quantity    Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  product     product  @relation(fields: [productId], references: [id], onDelete: Cascade, map: "Stock_productId_fkey")
+
+  @@index([productId], map: "Stock_productId_idx")
+  @@index([warehouseId], map: "Stock_warehouseId_idx")
+}
+
+model user {
+  id            String         @id @default(cuid())
+  email         String         @unique(map: "User_email_key")
+  name          String
+  password      String
+  roleId        String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  activitylog   activitylog[]
+  refreshtoken  refreshtoken[]
+  role          role           @relation(fields: [roleId], references: [id], map: "User_roleId_fkey")
+  itemhistories itemhistory[]
+
+  @@index([roleId], map: "User_roleId_fkey")
+}
+
+model role {
+  id          String   @id @default(cuid())
+  name        String   @unique(map: "Role_name_key")
+  permissions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       user[]
+}
+
+model item_sat {
+  id              String            @id @default(cuid())
+  productSatId    String
+  serialNumber    String            @unique
+  status          itemdetail_status @default(GUDANG)
+  milikPerangkat  String?           // Milik Siapa
+  idToko          String?
+  namaToko        String?
+  dc              String?           // Lokasi DC
+  brandToko       String?           // Alfamart / Lawson
+  tglTerimaGudang DateTime?
+  catatanTerima   String?           // Keterangan saat terima
+  tglKirimMitra   DateTime?
+  mitra           String?
+  hargaPeplink    String?           // Harga / Biaya ke Transtel
+  notes           String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  product         product_sat       @relation(fields: [productSatId], references: [id], onDelete: Cascade)
+
+  @@index([productSatId])
+  @@index([serialNumber])
+}
+
+model product_sat {
+  id          String     @id @default(cuid())
+  name        String     // Nama Perangkat (e.g. PEPLINK BALANCE 20X)
+  sku         String     @unique
+  category    String     @default("SAT")
+  unit        String     @default("Pcs")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  items       item_sat[]
+}
+
+enum itemdetail_status {
+  GUDANG
+  TERPASANG
+  RUSAK
+  TEKNISI
+  DISMANTLE
+  CM_DI_GUDANG
+  CM_DI_NOC
+  CM_DI_TEKNISI
+  HILANG
+  MIGRASI
+  PROSES_INSTALASI
+  PROSES_MIGRASI
+  REPAIR
+  RUSAK_DI_TEKNISI
+  RUSAK_DI_TOKO
+}
+
+model itemhistory {
+  id        String     @id @default(cuid())
+  itemId    String
+  action    String
+  oldValue  String?    @db.Text
+  newValue  String?    @db.Text
+  field     String?
+  notes     String?    @db.Text
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  metadata  String?    @db.Text
+  createdAt DateTime   @default(now())
+  user      user?      @relation(fields: [userId], references: [id])
+  item      itemdetail @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([userId])
+}
+
+model synclog {
+  id           String   @id @default(cuid())
+  type         String
+  status       String
+  details      String?  @db.Text
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+}

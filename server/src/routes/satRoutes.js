@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import { authenticateToken } from '../middleware/auth.js';
 import {
   getProductsSat,
@@ -13,7 +14,10 @@ import {
   getItemsSat,
   createItemSat,
   updateItemSat,
-  deleteItemSat
+  deleteItemSat,
+  importItemsSat,
+  exportItemsSat,
+  downloadTemplateSat
 } from '../controllers/itemSatController.js';
 import {
   satStockIn,
@@ -21,6 +25,7 @@ import {
 } from '../controllers/satStockController.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(authenticateToken);
 
@@ -34,6 +39,9 @@ router.put('/products/:id', updateProductSat);
 router.delete('/products/:id', deleteProductSat);
 
 // Item SAT Routes
+router.post('/items/import', upload.single('file'), importItemsSat);
+router.get('/items/export', exportItemsSat);
+router.get('/items/template', downloadTemplateSat);
 router.get('/items', getItemsSat);
 router.post('/items', createItemSat);
 router.put('/items/:id', updateItemSat);

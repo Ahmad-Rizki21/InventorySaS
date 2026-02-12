@@ -28,19 +28,16 @@ import {
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import {
-  Barcode,
   Plus,
   Search,
   Edit,
   Trash2,
   RefreshCw,
-  Package,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  Calendar,
-  Store,
-  MapPin,
+  Download,
+  Upload,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -104,7 +101,9 @@ export function SatInventory() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemSat | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -260,6 +259,89 @@ export function SatInventory() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/sat/items/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inventory_sat_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Data berhasil diexport');
+      } else {
+        toast.error('Gagal mengexport data');
+      }
+    } catch (error) {
+      toast.error('Terjadi kesalahan saat export');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return toast.error('Pilih file terlebih dahulu');
+
+    const formData = new FormData();
+    formData.append('file', importFile);
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/sat/items/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message);
+        setImportDialogOpen(false);
+        setImportFile(null);
+        fetchItems();
+      } else {
+        const err = await response.json();
+        toast.error(err.error || 'Gagal import data');
+      }
+    } catch (error) {
+      toast.error('Terjadi kesalahan saat import');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/sat/items/template`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `template_import_sat.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        toast.error('Gagal download template');
+      }
+    } catch (error) {
+      toast.error('Terjadi kesalahan saat download template');
+    }
+  };
+
   const openEditDialog = (item: ItemSat) => {
     setSelectedItem(item);
     setFormData({
@@ -300,10 +382,20 @@ export function SatInventory() {
           <h1 className="text-3xl font-bold tracking-tight">Inventory SAT</h1>
           <p className="text-muted-foreground">Kelola unit Peplink dan perangkat SAT lainnya</p>
         </div>
-        <Button onClick={() => { resetForm(); setAddDialogOpen(true); }} className="gap-2 bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm">
-          <Plus className="h-4 w-4" />
-          Tambah Unit SAT
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="gap-2">
+            <Upload className="h-4 w-4" />
+            Import
+          </Button>
+          <Button variant="outline" onClick={handleExport} className="gap-2">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <Button onClick={() => { resetForm(); setAddDialogOpen(true); }} className="gap-2 bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm">
+            <Plus className="h-4 w-4" />
+            Tambah Unit SAT
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -516,6 +608,44 @@ export function SatInventory() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Batal</Button>
             <Button variant="destructive" onClick={handleDelete}>Hapus</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Import Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Data SAT</DialogTitle>
+            <DialogDescription>
+              Upload file Excel (.xlsx) sesuai template. Pastikan nama kolom sesuai.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <Button variant="outline" onClick={handleDownloadTemplate} className="w-full gap-2 border-dashed">
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              Download Template Excel
+            </Button>
+            
+            <div className="space-y-2">
+              <Label>Upload File</Label>
+              <Input 
+                type="file" 
+                accept=".xlsx, .xls"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)} 
+              />
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              Kolom Wajib: NAMA PERANGKAT, SN. <br/>
+              Kolom Optional: STATUS, MILIK PERANGKAT, ID TOKO, NAMA TOKO, dll.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleImport} disabled={!importFile || loading}>
+              {loading ? 'Importing...' : 'Upload & Import'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
